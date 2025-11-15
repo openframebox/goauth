@@ -150,7 +150,8 @@ func TestIssueTokens(t *testing.T) {
 	t.Run("should issue access and refresh tokens", func(t *testing.T) {
 		var storedRefreshToken string
 		tokenIssuer := NewDefaultTokenIssuer("testsecret")
-		tokenIssuer.SetStoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token) error {
+		tokenIssuer.SetStoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token, refreshing bool) error {
+			// use refreshing to determine if the token is being refreshed or not
 			storedRefreshToken = token.Value
 			return nil
 		})

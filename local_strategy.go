@@ -2,8 +2,10 @@ package goauth
 
 import "context"
 
+type LookupUserFunc func(params AuthParams) (Authenticatable, error)
+
 type LocalStrategy struct {
-	LookupUserWith (func(params AuthParams) (Authenticatable, error))
+	LookupUserWith LookupUserFunc
 }
 
 func (ls *LocalStrategy) Name() string {

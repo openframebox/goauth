@@ -23,7 +23,7 @@ func (ls *JWTStrategy) Authenticate(ctx context.Context, params AuthParams) (*Au
 	if err != nil {
 		return nil, err
 	}
-	user, err := ls.TokenIssuer.ConvertTokenClaims(ctx, claims)
+	user, err := ls.TokenIssuer.ConvertAccessTokenClaims(ctx, claims)
 	if err != nil {
 		return nil, err
 	}

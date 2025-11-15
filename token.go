@@ -9,10 +9,11 @@ import (
 	"github.com/google/uuid"
 )
 
-type StoreRefreshTokenFunc func(ctx context.Context, authenticatable Authenticatable, token *Token) error
+type StoreRefreshTokenFunc func(ctx context.Context, authenticatable Authenticatable, token *Token, refreshing bool) error
 type SetExtraClaimsFunc func(ctx context.Context, authenticatable Authenticatable) map[string]any
 type SetRegisteredClaimsFunc func(ctx context.Context, authenticatable Authenticatable) jwt.RegisteredClaims
-type ConvertTokenClaimsFunc func(ctx context.Context, claims *TokenClaims) (Authenticatable, error)
+type ConvertAccessTokenClaimsFunc func(ctx context.Context, claims *TokenClaims) (Authenticatable, error)
+type ValidateRefreshTokenFunc func(ctx context.Context, token string) (Authenticatable, error)
 
 type TokenClaims struct {
 	jwt.RegisteredClaims
@@ -20,15 +21,16 @@ type TokenClaims struct {
 }
 
 type DefaultTokenIssuer struct {
-	secret                  string
-	issuer                  string
-	audience                []string
-	accessTokenExpiresIn    time.Duration
-	refreshTokenExpiresIn   time.Duration
-	storeRefreshTokenWith   StoreRefreshTokenFunc
-	setExtraClaimsWith      SetExtraClaimsFunc
-	setRegisteredClaimsWith SetRegisteredClaimsFunc
-	convertTokenClaimsWith  ConvertTokenClaimsFunc
+	secret                       string
+	issuer                       string
+	audience                     []string
+	accessTokenExpiresIn         time.Duration
+	refreshTokenExpiresIn        time.Duration
+	storeRefreshTokenWith        StoreRefreshTokenFunc
+	setExtraClaimsWith           SetExtraClaimsFunc
+	setRegisteredClaimsWith      SetRegisteredClaimsFunc
+	convertAccessTokenClaimsWith ConvertAccessTokenClaimsFunc
+	validateRefreshTokenWith     ValidateRefreshTokenFunc
 }
 
 func NewDefaultTokenIssuer(secret string) *DefaultTokenIssuer {
@@ -75,8 +77,12 @@ func (ti *DefaultTokenIssuer) SetRegisteredClaimsWith(setRegisteredClaimsWith Se
 	ti.setRegisteredClaimsWith = setRegisteredClaimsWith
 }
 
-func (ti *DefaultTokenIssuer) SetConvertTokenClaimsWith(convertTokenClaimsWith ConvertTokenClaimsFunc) {
-	ti.convertTokenClaimsWith = convertTokenClaimsWith
+func (ti *DefaultTokenIssuer) SetConvertAccessTokenClaimsWith(convertAccessTokenClaimsWith ConvertAccessTokenClaimsFunc) {
+	ti.convertAccessTokenClaimsWith = convertAccessTokenClaimsWith
+}
+
+func (ti *DefaultTokenIssuer) SetValidateRefreshTokenWith(validateRefreshTokenWith ValidateRefreshTokenFunc) {
+	ti.validateRefreshTokenWith = validateRefreshTokenWith
 }
 
 func (ti *DefaultTokenIssuer) CreateAccessToken(ctx context.Context, authenticatable Authenticatable) (*Token, error) {
@@ -115,7 +121,7 @@ func (ti *DefaultTokenIssuer) CreateAccessToken(ctx context.Context, authenticat
 	}, nil
 }
 
-func (ti *DefaultTokenIssuer) CreateRefreshToken(ctx context.Context, authenticatable Authenticatable) (*Token, error) {
+func (ti *DefaultTokenIssuer) CreateRefreshToken(ctx context.Context, authenticatable Authenticatable, refreshing bool) (*Token, error) {
 	if ti.storeRefreshTokenWith == nil {
 		return nil, fmt.Errorf("store refresh token with function is not set, use SetStoreRefreshTokenWith to set it")
 	}
@@ -126,7 +132,7 @@ func (ti *DefaultTokenIssuer) CreateRefreshToken(ctx context.Context, authentica
 		ExpiresIn: ti.refreshTokenExpiresIn,
 	}
 
-	err := ti.storeRefreshTokenWith(ctx, authenticatable, token)
+	err := ti.storeRefreshTokenWith(ctx, authenticatable, token, refreshing)
 	if err != nil {
 		return nil, err
 	}
@@ -151,12 +157,25 @@ func (ti *DefaultTokenIssuer) DecodeAccessToken(ctx context.Context, token strin
 	return claims, nil
 }
 
-func (ti *DefaultTokenIssuer) ConvertTokenClaims(ctx context.Context, claims *TokenClaims) (Authenticatable, error) {
-	if ti.convertTokenClaimsWith != nil {
-		return ti.convertTokenClaimsWith(ctx, claims)
+func (ti *DefaultTokenIssuer) ConvertAccessTokenClaims(ctx context.Context, claims *TokenClaims) (Authenticatable, error) {
+	if ti.convertAccessTokenClaimsWith != nil {
+		return ti.convertAccessTokenClaimsWith(ctx, claims)
 	}
 
 	return &User{
 		ID: claims.Subject,
 	}, nil
+}
+
+func (ti *DefaultTokenIssuer) ValidateRefreshToken(ctx context.Context, token string) (Authenticatable, error) {
+	if ti.validateRefreshTokenWith == nil {
+		return nil, fmt.Errorf("validate refresh token with function is not set, use SetValidateRefreshTokenWith to set it")
+	}
+
+	authenticatable, err := ti.validateRefreshTokenWith(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	return authenticatable, nil
 }
