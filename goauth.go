@@ -1,0 +1,78 @@
+package goauth
+
+import (
+	"context"
+	"fmt"
+)
+
+type GoAuth struct {
+	tokenIssuer TokenIssuer
+	strategies  map[string]Strategy
+}
+
+func New() *GoAuth {
+	ga := &GoAuth{}
+	ga.strategies = make(map[string]Strategy)
+
+	return ga
+}
+
+func (ga *GoAuth) RegisterStrategy(strategy Strategy) {
+	if _, ok := ga.strategies[strategy.Name()]; !ok {
+		ga.strategies[strategy.Name()] = strategy
+	}
+}
+
+func (ga *GoAuth) SetTokenIssuer(tokenIssuer TokenIssuer) {
+	ga.tokenIssuer = tokenIssuer
+}
+
+func (ga *GoAuth) Authenticate(ctx context.Context, strategy string, params AuthParams) (*AuthResult, error) {
+	s, err := ga.lookupStrategy(strategy)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return s.Authenticate(ctx, params)
+}
+
+func (ga *GoAuth) IssueTokens(ctx context.Context, authenticatable Authenticatable) (accessToken *Token, refreshToken *Token, err error) {
+	if ga.tokenIssuer == nil {
+		return nil, nil, fmt.Errorf("token issuer is not set")
+	}
+
+	accessToken, err = ga.tokenIssuer.CreateAccessToken(ctx, authenticatable)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	refreshToken, err = ga.tokenIssuer.CreateRefreshToken(ctx, authenticatable)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return accessToken, refreshToken, nil
+}
+
+func (ga *GoAuth) AuthenticateAndIssueTokens(ctx context.Context, strategy string, params AuthParams) (authResult *AuthResult, accessToken *Token, refreshToken *Token, err error) {
+	result, err := ga.Authenticate(ctx, strategy, params)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	accessToken, refreshToken, err = ga.IssueTokens(ctx, result.Authenticatable)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return result, accessToken, refreshToken, nil
+}
+
+func (ga *GoAuth) lookupStrategy(name string) (Strategy, error) {
+	if _, ok := ga.strategies[name]; !ok {
+		return nil, fmt.Errorf("strategy %s not found", name)
+	}
+
+	return ga.strategies[name], nil
+}
