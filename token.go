@@ -2,7 +2,6 @@ package goauth
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -121,7 +120,7 @@ func (ti *DefaultTokenIssuer) CreateAccessToken(ctx context.Context, authenticat
 
 func (ti *DefaultTokenIssuer) CreateRefreshToken(ctx context.Context, authenticatable Authenticatable, refreshing bool) (*Token, error) {
 	if ti.storeRefreshTokenWith == nil {
-		return nil, fmt.Errorf("store refresh token with function is not set, use SetStoreRefreshTokenWith to set it")
+		return nil, &ConfigError{Msg: "StoreRefreshTokenWith is not set"}
 	}
 
 	tokenString := uuid.New().String()
@@ -132,7 +131,7 @@ func (ti *DefaultTokenIssuer) CreateRefreshToken(ctx context.Context, authentica
 
 	err := ti.storeRefreshTokenWith(ctx, authenticatable, token, refreshing)
 	if err != nil {
-		return nil, err
+		return nil, &InternalError{Msg: "failed to store refresh token", Err: err}
 	}
 
 	return token, nil
@@ -144,12 +143,13 @@ func (ti *DefaultTokenIssuer) DecodeAccessToken(ctx context.Context, token strin
 	})
 
 	if err != nil {
-		return nil, err
+		// jwt lib returns various errors (validation/signature/expired). Classify as token error.
+		return nil, &TokenError{Msg: "failed to parse or validate access token", Err: err}
 	}
 
 	claims, ok := jwt.Claims.(*TokenClaims)
 	if !ok {
-		return nil, fmt.Errorf("invalid claims")
+		return nil, &TokenError{Msg: "invalid token claims"}
 	}
 
 	return claims, nil
@@ -157,25 +157,29 @@ func (ti *DefaultTokenIssuer) DecodeAccessToken(ctx context.Context, token strin
 
 func (ti *DefaultTokenIssuer) ConvertAccessTokenClaims(ctx context.Context, claims *TokenClaims) (Authenticatable, error) {
 	if ti.convertAccessTokenClaimsWith != nil {
-		return ti.convertAccessTokenClaimsWith(ctx, claims)
+		a, err := ti.convertAccessTokenClaimsWith(ctx, claims)
+		if err != nil {
+			return nil, &TokenError{Msg: "failed to convert access token claims", Err: err}
+		}
+		return a, nil
 	}
 
 	return &User{
-		ID:        claims.Subject,
-		Username:  claims.Username,
-		Email:     claims.Email,
-		ExtraData: claims.ExtraClaims,
+		ID:       claims.Subject,
+		Username: claims.Username,
+		Email:    claims.Email,
+		Extra:    claims.ExtraClaims,
 	}, nil
 }
 
 func (ti *DefaultTokenIssuer) ValidateRefreshToken(ctx context.Context, token string) (Authenticatable, error) {
 	if ti.validateRefreshTokenWith == nil {
-		return nil, fmt.Errorf("validate refresh token with function is not set, use SetValidateRefreshTokenWith to set it")
+		return nil, &ConfigError{Msg: "ValidateRefreshTokenWith is not set"}
 	}
 
 	authenticatable, err := ti.validateRefreshTokenWith(ctx, token)
 	if err != nil {
-		return nil, err
+		return nil, &TokenError{Msg: "invalid or rejected refresh token", Err: err}
 	}
 
 	return authenticatable, nil

@@ -2,7 +2,6 @@ package goauth
 
 import (
 	"context"
-	"fmt"
 )
 
 type JWTStrategy struct {
@@ -16,16 +15,16 @@ func (ls *JWTStrategy) Name() string {
 func (ls *JWTStrategy) Authenticate(ctx context.Context, params AuthParams) (Authenticatable, error) {
 	token := params.Token
 	if token == "" {
-		return nil, fmt.Errorf("token is required")
+		return nil, &TokenError{Msg: "token is required"}
 	}
 
 	claims, err := ls.TokenIssuer.DecodeAccessToken(ctx, token)
 	if err != nil {
-		return nil, err
+		return nil, withContext(&TokenError{Err: err}, "failed to decode access token")
 	}
 	user, err := ls.TokenIssuer.ConvertAccessTokenClaims(ctx, claims)
 	if err != nil {
-		return nil, err
+		return nil, withContext(&TokenError{Err: err}, "failed to convert token claims")
 	}
 
 	return user, nil

@@ -21,7 +21,7 @@ type Authenticatable interface {
 	GetID() string
 	GetUsername() string
 	GetEmail() string
-	GetExtraData() map[string]any
+	GetExtra() map[string]any
 }
 
 type TokenIssuer interface {

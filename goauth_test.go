@@ -115,7 +115,7 @@ func TestAuthenticate(t *testing.T) {
 			ID:       "test",
 			Username: "test",
 			Email:    "test@test.com",
-			ExtraData: map[string]any{
+			Extra: map[string]any{
 				"role": "admin",
 			},
 		}

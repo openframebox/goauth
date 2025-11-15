@@ -6,6 +6,7 @@ type AuthParams struct {
 	UsernameOrEmail string
 	Password        string
 	Token           string
+	Extra           map[string]any
 }
 
 type AuthResult struct {
@@ -22,7 +23,7 @@ type User struct {
 	ID        string
 	Username  string
 	Email     string
-	ExtraData map[string]any
+	Extra map[string]any
 }
 
 func (u *User) GetID() string {
@@ -37,6 +38,6 @@ func (u *User) GetEmail() string {
 	return u.Email
 }
 
-func (u *User) GetExtraData() map[string]any {
-	return u.ExtraData
+func (u *User) GetExtra() map[string]any {
+	return u.Extra
 }

@@ -47,7 +47,7 @@ func (ga *GoAuth) Authenticate(ctx context.Context, strategy string, params Auth
 
 func (ga *GoAuth) IssueTokens(ctx context.Context, authenticatable Authenticatable) (accessToken *Token, refreshToken *Token, err error) {
 	if ga.tokenIssuer == nil {
-		return nil, nil, fmt.Errorf("token issuer is not set")
+		return nil, nil, ErrTokenIssuerUnset
 	}
 
 	accessToken, err = ga.tokenIssuer.CreateAccessToken(ctx, authenticatable)
@@ -79,7 +79,7 @@ func (ga *GoAuth) AuthenticateAndIssueTokens(ctx context.Context, strategy strin
 
 func (ga *GoAuth) RefreshToken(ctx context.Context, token string) (accessToken *Token, refreshToken *Token, err error) {
 	if ga.tokenIssuer == nil {
-		return nil, nil, fmt.Errorf("token issuer is not set")
+		return nil, nil, ErrTokenIssuerUnset
 	}
 
 	user, err := ga.tokenIssuer.ValidateRefreshToken(ctx, token)
@@ -88,7 +88,7 @@ func (ga *GoAuth) RefreshToken(ctx context.Context, token string) (accessToken *
 	}
 
 	if user == nil {
-		return nil, nil, fmt.Errorf("invalid refresh token")
+		return nil, nil, &TokenError{Msg: "invalid refresh token"}
 	}
 
 	accessToken, err = ga.tokenIssuer.CreateAccessToken(ctx, user)
@@ -108,6 +108,6 @@ func (ga *GoAuth) lookupStrategy(name string) (Strategy, error) {
 	if strategy, ok := ga.strategies[name]; ok {
 		return strategy, nil
 	} else {
-		return nil, fmt.Errorf("strategy %s not found", name)
+		return nil, &NotFoundError{Msg: fmt.Sprintf("strategy %s not found", name)}
 	}
 }
