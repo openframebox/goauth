@@ -20,10 +20,10 @@ type Token struct {
 }
 
 type User struct {
-	ID        string
-	Username  string
-	Email     string
-	Extra map[string]any
+	ID       string
+	Username string
+	Email    string
+	Extra    map[string]any
 }
 
 func (u *User) GetID() string {

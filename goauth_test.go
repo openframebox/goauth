@@ -262,3 +262,72 @@ func TestIssueTokens(t *testing.T) {
 		}
 	})
 }
+
+func TestSingleton(t *testing.T) {
+	t.Run("registers and retrieves singleton instance", func(t *testing.T) {
+		ga := New()
+		ga.RegisterSingleton()
+
+		got := GetInstance()
+		if got == nil {
+			t.Fatalf("expected non-nil singleton instance")
+		}
+		if got != ga {
+			t.Fatalf("expected singleton to equal registered instance")
+		}
+	})
+
+	t.Run("overwrites previous singleton instance", func(t *testing.T) {
+		ga1 := New()
+		ga1.RegisterSingleton()
+		if GetInstance() != ga1 {
+			t.Fatalf("expected first singleton to be ga1")
+		}
+
+		ga2 := New()
+		ga2.RegisterSingleton()
+		if GetInstance() != ga2 {
+			t.Fatalf("expected singleton to be overwritten by ga2")
+		}
+	})
+
+	t.Run("RegisterSingletonOnce sets once and errors on second", func(t *testing.T) {
+		// ensure clean state using test replacer
+		restore := ReplaceSingletonForTest(nil)
+		defer restore()
+
+		ga := New()
+		if err := ga.RegisterSingletonOnce(); err != nil {
+			t.Fatalf("unexpected error on first RegisterSingletonOnce: %v", err)
+		}
+		if GetInstance() != ga {
+			t.Fatalf("expected singleton to be ga after RegisterSingletonOnce")
+		}
+
+		other := New()
+		if err := other.RegisterSingletonOnce(); err == nil {
+			t.Fatalf("expected error on second RegisterSingletonOnce with different instance")
+		}
+		if GetInstance() != ga {
+			t.Fatalf("expected singleton to remain ga after failed second RegisterSingletonOnce")
+		}
+	})
+
+	t.Run("ReplaceSingletonForTest replaces and restores", func(t *testing.T) {
+		base := New()
+		base.RegisterSingleton()
+		if GetInstance() != base {
+			t.Fatalf("expected base instance registered")
+		}
+
+		temp := New()
+		restore := ReplaceSingletonForTest(temp)
+		if GetInstance() != temp {
+			t.Fatalf("expected temp instance during test replacement")
+		}
+		restore()
+		if GetInstance() != base {
+			t.Fatalf("expected base instance restored after test replacement")
+		}
+	})
+}

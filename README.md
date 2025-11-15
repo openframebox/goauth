@@ -76,6 +76,12 @@ func setup() *goauth.GoAuth {
 
     // JWT bearer token strategy
     ga.RegisterStrategy(&goauth.JWTStrategy{TokenIssuer: ti})
+
+    // Option A (overwrite allowed):
+    ga.RegisterSingleton()
+
+    // Option B (set once):
+    // if err := ga.RegisterSingletonOnce(); err != nil { panic(err) }
     return ga
 }
 ```
@@ -200,6 +206,26 @@ ga.RegisterStrategy(&OAuthStrategy{})
 - Any custom metadata you want strategies to see.
 
 Access it in your strategy or lookup function via `params.Extra["key"]`. Prefer checking presence and type-asserting to avoid panics.
+
+### Singleton Access
+
+Singleton registration exists to provide an easy way to access the GoAuth instance from middleware/handlers without threading it through parameters. Use it when DI isn't practical; otherwise prefer explicit dependency injection.
+
+If you prefer a global instance:
+
+```go
+ga := setup()
+ga.RegisterSingleton()              // or: _ = ga.RegisterSingletonOnce()
+// Later in handlers/services:
+ga = goauth.GetInstance()
+```
+
+Testing support:
+
+```go
+restore := goauth.ReplaceSingletonForTest(mockGA)
+defer restore()
+```
 
 ### Typed Errors
 
