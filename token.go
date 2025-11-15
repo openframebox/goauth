@@ -9,14 +9,10 @@ import (
 	"github.com/google/uuid"
 )
 
-type StoreRefreshTokenFunc func(ctx context.Context, authenticatable Authenticatable, token *Token, refreshing bool) error
-type SetExtraClaimsFunc func(ctx context.Context, authenticatable Authenticatable) map[string]any
-type SetRegisteredClaimsFunc func(ctx context.Context, authenticatable Authenticatable) jwt.RegisteredClaims
-type ConvertAccessTokenClaimsFunc func(ctx context.Context, claims *TokenClaims) (Authenticatable, error)
-type ValidateRefreshTokenFunc func(ctx context.Context, token string) (Authenticatable, error)
-
 type TokenClaims struct {
 	jwt.RegisteredClaims
+	Username    string         `json:"username,omitempty"`
+	Email       string         `json:"email,omitempty"`
 	ExtraClaims map[string]any `json:"ext,omitempty"`
 }
 
@@ -65,7 +61,7 @@ func (ti *DefaultTokenIssuer) SetRefreshTokenExpiresIn(expiresIn time.Duration) 
 	ti.refreshTokenExpiresIn = expiresIn
 }
 
-func (ti *DefaultTokenIssuer) SetStoreRefreshTokenWith(storeRefreshTokenWith StoreRefreshTokenFunc) {
+func (ti *DefaultTokenIssuer) StoreRefreshTokenWith(storeRefreshTokenWith StoreRefreshTokenFunc) {
 	ti.storeRefreshTokenWith = storeRefreshTokenWith
 }
 
@@ -77,11 +73,11 @@ func (ti *DefaultTokenIssuer) SetRegisteredClaimsWith(setRegisteredClaimsWith Se
 	ti.setRegisteredClaimsWith = setRegisteredClaimsWith
 }
 
-func (ti *DefaultTokenIssuer) SetConvertAccessTokenClaimsWith(convertAccessTokenClaimsWith ConvertAccessTokenClaimsFunc) {
+func (ti *DefaultTokenIssuer) ConvertAccessTokenClaimsWith(convertAccessTokenClaimsWith ConvertAccessTokenClaimsFunc) {
 	ti.convertAccessTokenClaimsWith = convertAccessTokenClaimsWith
 }
 
-func (ti *DefaultTokenIssuer) SetValidateRefreshTokenWith(validateRefreshTokenWith ValidateRefreshTokenFunc) {
+func (ti *DefaultTokenIssuer) ValidateRefreshTokenWith(validateRefreshTokenWith ValidateRefreshTokenFunc) {
 	ti.validateRefreshTokenWith = validateRefreshTokenWith
 }
 
@@ -106,8 +102,10 @@ func (ti *DefaultTokenIssuer) CreateAccessToken(ctx context.Context, authenticat
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, TokenClaims{
-		ExtraClaims:      extraClaims,
 		RegisteredClaims: registeredClaims,
+		Username:         authenticatable.GetUsername(),
+		Email:            authenticatable.GetEmail(),
+		ExtraClaims:      extraClaims,
 	})
 
 	tokenString, err := token.SignedString([]byte(ti.secret))
@@ -163,7 +161,10 @@ func (ti *DefaultTokenIssuer) ConvertAccessTokenClaims(ctx context.Context, clai
 	}
 
 	return &User{
-		ID: claims.Subject,
+		ID:        claims.Subject,
+		Username:  claims.Username,
+		Email:     claims.Email,
+		ExtraData: claims.ExtraClaims,
 	}, nil
 }
 

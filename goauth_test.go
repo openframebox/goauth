@@ -101,17 +101,38 @@ func TestAuthenticate(t *testing.T) {
 		})
 		tokenIssuer.SetIssuer("api.example.com")
 		tokenIssuer.SetAudience([]string{"api.example.com", "auth.example.com"})
+		tokenIssuer.StoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token, refreshing bool) error {
+			// use refreshing to determine if the token is being refreshed or not
+			return nil
+		})
 
 		goauth.RegisterStrategy(&JWTStrategy{
 			TokenIssuer: tokenIssuer,
 		})
+		goauth.SetTokenIssuer(tokenIssuer)
+
+		user := &User{
+			ID:       "test",
+			Username: "test",
+			Email:    "test@test.com",
+			ExtraData: map[string]any{
+				"role": "admin",
+			},
+		}
+
+		accessToken, _, err := goauth.IssueTokens(t.Context(), user)
+		if err != nil {
+			t.Errorf("err should be nil %v", err)
+			return
+		}
 
 		result, err := goauth.Authenticate(context.TODO(), "jwt", AuthParams{
-			Token: "test",
+			Token: accessToken.Value,
 		})
 
 		if err != nil {
-			t.Errorf("err should be nil")
+			t.Errorf("err should be nil %v", err)
+			return
 		}
 
 		if result == nil {
@@ -150,7 +171,7 @@ func TestIssueTokens(t *testing.T) {
 	t.Run("should issue access and refresh tokens", func(t *testing.T) {
 		var storedRefreshToken string
 		tokenIssuer := NewDefaultTokenIssuer("testsecret")
-		tokenIssuer.SetStoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token, refreshing bool) error {
+		tokenIssuer.StoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token, refreshing bool) error {
 			// use refreshing to determine if the token is being refreshed or not
 			storedRefreshToken = token.Value
 			return nil
@@ -239,8 +260,5 @@ func TestIssueTokens(t *testing.T) {
 			t.Errorf("storedRefreshToken should not be empty")
 			return
 		}
-
-		fmt.Println("accessToken:", accessToken.Value)
-		fmt.Println("refreshToken:", refreshToken.Value)
 	})
 }

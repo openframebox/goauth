@@ -19,9 +19,10 @@ type Token struct {
 }
 
 type User struct {
-	ID       string
-	Username string
-	Email    string
+	ID        string
+	Username  string
+	Email     string
+	ExtraData map[string]any
 }
 
 func (u *User) GetID() string {
@@ -36,6 +37,6 @@ func (u *User) GetEmail() string {
 	return u.Email
 }
 
-func (u *User) ExtraData() map[string]interface{} {
-	return nil
+func (u *User) GetExtraData() map[string]any {
+	return u.ExtraData
 }

@@ -34,7 +34,15 @@ func (ga *GoAuth) Authenticate(ctx context.Context, strategy string, params Auth
 		return nil, err
 	}
 
-	return s.Authenticate(ctx, params)
+	user, err := s.Authenticate(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AuthResult{
+		Authenticatable: user,
+		Strategy:        s.Name(),
+	}, nil
 }
 
 func (ga *GoAuth) IssueTokens(ctx context.Context, authenticatable Authenticatable) (accessToken *Token, refreshToken *Token, err error) {
