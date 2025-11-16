@@ -96,7 +96,7 @@ func main() {
 	ga.SetTokenIssuer(issuer)
 
 	// Local strategy using a trivial credential check for demo purposes
-	ga.RegisterStrategy(&goauth.LocalStrategy{LookupUserWith: func(params goauth.AuthParams) (goauth.Authenticatable, error) {
+	ga.RegisterStrategy(&goauth.LocalStrategy{LookupUserWith: func(ctx context.Context, params goauth.AuthParams) (goauth.Authenticatable, error) {
 		// Demo: accept any non-empty username/password, construct an example user
 		if params.UsernameOrEmail == "" || params.Password == "" {
 			return nil, fmt.Errorf("missing credentials")

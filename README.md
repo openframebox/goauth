@@ -68,7 +68,7 @@ func setup() *goauth.GoAuth {
     ga.SetTokenIssuer(ti)
 
     // Local username/password strategy
-    ga.RegisterStrategy(&goauth.LocalStrategy{LookupUserWith: func(p goauth.AuthParams) (goauth.Authenticatable, error) {
+    ga.RegisterStrategy(&goauth.LocalStrategy{LookupUserWith: func(ctx context.Context, p goauth.AuthParams) (goauth.Authenticatable, error) {
         // validate p.UsernameOrEmail + p.Password
         // return &goauth.CredentialError on invalid creds
         return &goauth.User{ID: "user-" + p.UsernameOrEmail, Username: p.UsernameOrEmail}, nil
@@ -182,7 +182,7 @@ If you need asymmetric signing or non-JWT tokens, implement `TokenIssuer` yourse
 
 Two built-in strategies:
 
-- `LocalStrategy`: takes a `LookupUserWith(AuthParams) (Authenticatable, error)` function. Return `CredentialError` for bad creds, `InternalError` for DB failures, etc.
+- `LocalStrategy`: takes a `LookupUserWith(Context, AuthParams) (Authenticatable, error)` function. Return `CredentialError` for bad creds, `InternalError` for DB failures, etc.
 - `JWTStrategy`: takes a `TokenIssuer` and authenticates a bearer token.
 
 Custom strategies can implement `Strategy` and be registered on `GoAuth`:

@@ -43,7 +43,7 @@ func TestAuthenticate(t *testing.T) {
 
 	t.Run("should authenticate a user with local strategy", func(t *testing.T) {
 		goauth.RegisterStrategy(&LocalStrategy{
-			LookupUserWith: func(params AuthParams) (Authenticatable, error) {
+			LookupUserWith: func(ctx context.Context, params AuthParams) (Authenticatable, error) {
 				return &User{
 					ID:       "test",
 					Username: "test",
@@ -188,7 +188,7 @@ func TestIssueTokens(t *testing.T) {
 		goauth.SetTokenIssuer(tokenIssuer)
 
 		goauth.RegisterStrategy(&LocalStrategy{
-			LookupUserWith: func(params AuthParams) (Authenticatable, error) {
+			LookupUserWith: func(ctx context.Context, params AuthParams) (Authenticatable, error) {
 				return &User{
 					ID:       "test",
 					Username: "test",

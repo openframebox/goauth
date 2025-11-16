@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-type LookupUserFunc func(params AuthParams) (Authenticatable, error)
+type LookupUserFunc func(ctx context.Context, params AuthParams) (Authenticatable, error)
 
 type LocalStrategy struct {
 	LookupUserWith LookupUserFunc
@@ -16,7 +16,7 @@ func (ls *LocalStrategy) Name() string {
 }
 
 func (ls *LocalStrategy) Authenticate(ctx context.Context, params AuthParams) (Authenticatable, error) {
-	user, err := ls.LookupUserWith(params)
+	user, err := ls.LookupUserWith(ctx, params)
 	if err != nil {
 		// If the Lookup returns a known typed error, forward it.
 		var (
