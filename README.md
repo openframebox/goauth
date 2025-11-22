@@ -19,6 +19,7 @@ go get github.com/openframebox/goauth/v2
 ```
 
 For v1 (legacy):
+
 ```bash
 go get github.com/openframebox/goauth
 ```
@@ -185,6 +186,31 @@ func getSession(ctx context.Context, token string) (*goauth.SessionInfo, error) 
     return session, nil
 }
 ```
+
+## Choosing a Token Issuer
+
+| Feature                 | DefaultTokenIssuer   | SessionTokenIssuer                                   |
+| ----------------------- | -------------------- | ---------------------------------------------------- |
+| **Signing algorithms**  | HS256 only           | HS256/384/512, RS256/384/512, ES256/384/512          |
+| **Multi-device login**  | No session isolation | Each device = unique session                         |
+| **Session management**  | None                 | `ListSessions`, `RevokeSession`, `RevokeAllSessions` |
+| **JWT `sid` claim**     | Not included         | Session ID embedded in access token                  |
+| **Session metadata**    | None                 | Device, IP, user agent tracking                      |
+| **Configuration style** | Setter methods       | Builder pattern                                      |
+| **Storage callbacks**   | Token-centric        | Session-centric                                      |
+
+**Use `DefaultTokenIssuer` when:**
+
+- Simple single-session apps
+- You only need basic JWT with HS256
+- You manage token storage yourself without session semantics
+
+**Use `SessionTokenIssuer` when:**
+
+- Users log in from multiple devices (phone + laptop)
+- You need "see all active sessions" or "logout all devices" features
+- You want flexible signing algorithms (RSA, ECDSA)
+- You need session metadata (device info, IP tracking)
 
 ## Core Flows
 
@@ -375,16 +401,16 @@ func authMiddleware(next http.Handler) http.Handler {
 
 ## Error Types & HTTP Mapping
 
-| Error Type | HTTP Status | Error Code |
-|------------|-------------|------------|
-| `CredentialError` | 401 | `invalid_credentials` |
-| `TokenError` | 401 | `token_error` / `token_missing` / `token_invalid` / `token_expired` / `token_revoked` |
-| `ValidationError` | 400 | `validation_error` |
-| `RateLimitError` | 429 | `rate_limit_exceeded` |
-| `NotFoundError` | 404 | `not_found` / `strategy_not_found` / `session_not_found` |
-| `ConfigError` | 500 | `config_error` |
-| `InternalError` | 500 | `internal_error` |
-| `SessionError` | 401 | `session_error` |
+| Error Type        | HTTP Status | Error Code                                                                            |
+| ----------------- | ----------- | ------------------------------------------------------------------------------------- |
+| `CredentialError` | 401         | `invalid_credentials`                                                                 |
+| `TokenError`      | 401         | `token_error` / `token_missing` / `token_invalid` / `token_expired` / `token_revoked` |
+| `ValidationError` | 400         | `validation_error`                                                                    |
+| `RateLimitError`  | 429         | `rate_limit_exceeded`                                                                 |
+| `NotFoundError`   | 404         | `not_found` / `strategy_not_found` / `session_not_found`                              |
+| `ConfigError`     | 500         | `config_error`                                                                        |
+| `InternalError`   | 500         | `internal_error`                                                                      |
+| `SessionError`    | 401         | `session_error`                                                                       |
 
 ```go
 // Get structured error response
@@ -436,6 +462,7 @@ go run ./example/http_server
 ```
 
 The HTTP server example provides:
+
 - `POST /login` - Authenticate and get tokens
 - `POST /refresh` - Refresh tokens
 - `POST /logout` - Revoke current session
@@ -448,6 +475,7 @@ The HTTP server example provides:
 ### Breaking Changes
 
 1. **Module path changed**: Import path is now `github.com/openframebox/goauth/v2`
+
    ```go
    // v1
    import goauth "github.com/openframebox/goauth"
@@ -456,6 +484,7 @@ The HTTP server example provides:
    ```
 
 2. **TokenIssuer interface**: `CreateRefreshToken` signature changed
+
    ```go
    // v1
    CreateRefreshToken(ctx, auth, refreshing bool) (*Token, error)
@@ -464,6 +493,7 @@ The HTTP server example provides:
    ```
 
 3. **StoreRefreshTokenFunc**: signature changed
+
    ```go
    // v1
    func(ctx, auth, token, refreshing bool) error
@@ -472,6 +502,7 @@ The HTTP server example provides:
    ```
 
 4. **Strategy constructors**: use builder pattern
+
    ```go
    // v1
    &goauth.LocalStrategy{LookupUserWith: fn}
@@ -485,6 +516,7 @@ The HTTP server example provides:
    ```
 
 5. **Token struct**: new fields added
+
    - `Type` (TokenType) - "access" or "refresh"
    - `IssuedAt` (time.Time)
    - `SessionID` (string)
