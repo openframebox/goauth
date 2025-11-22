@@ -1,4 +1,4 @@
-module github.com/openframebox/goauth
+module github.com/openframebox/goauth/v2
 
 go 1.25.0
 

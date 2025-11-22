@@ -1,186 +1,54 @@
 package goauth
 
 import (
-	"context"
-	"time"
-
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 )
 
+// TokenClaims represents the JWT claims for access tokens
 type TokenClaims struct {
 	jwt.RegisteredClaims
 	Username    string         `json:"username,omitempty"`
 	Email       string         `json:"email,omitempty"`
+	TokenType   TokenType      `json:"typ,omitempty"` // "access" or "refresh"
+	SessionID   string         `json:"sid,omitempty"` // Session identifier for multi-session support
 	ExtraClaims map[string]any `json:"ext,omitempty"`
 }
 
-type DefaultTokenIssuer struct {
-	secret                       string
-	issuer                       string
-	audience                     []string
-	accessTokenExpiresIn         time.Duration
-	refreshTokenExpiresIn        time.Duration
-	storeRefreshTokenWith        StoreRefreshTokenFunc
-	setExtraClaimsWith           SetExtraClaimsFunc
-	setRegisteredClaimsWith      SetRegisteredClaimsFunc
-	convertAccessTokenClaimsWith ConvertAccessTokenClaimsFunc
-	validateRefreshTokenWith     ValidateRefreshTokenFunc
-}
-
-func NewDefaultTokenIssuer(secret string) *DefaultTokenIssuer {
-	ti := &DefaultTokenIssuer{
-		secret:                secret,
-		issuer:                "goauth",
-		audience:              []string{"goauth"},
-		accessTokenExpiresIn:  300 * time.Second,  // default 5 minutes
-		refreshTokenExpiresIn: 3600 * time.Second, // default 1 hour
+// GetExtraClaim returns a value from extra claims
+func (tc *TokenClaims) GetExtraClaim(key string) (any, bool) {
+	if tc.ExtraClaims == nil {
+		return nil, false
 	}
-
-	return ti
+	v, ok := tc.ExtraClaims[key]
+	return v, ok
 }
 
-func (ti *DefaultTokenIssuer) SetSecret(secret string) {
-	ti.secret = secret
-}
-
-func (ti *DefaultTokenIssuer) SetIssuer(issuer string) {
-	ti.issuer = issuer
-}
-
-func (ti *DefaultTokenIssuer) SetAudience(audience []string) {
-	ti.audience = audience
-}
-
-func (ti *DefaultTokenIssuer) SetAccessTokenExpiresIn(expiresIn time.Duration) {
-	ti.accessTokenExpiresIn = expiresIn
-}
-
-func (ti *DefaultTokenIssuer) SetRefreshTokenExpiresIn(expiresIn time.Duration) {
-	ti.refreshTokenExpiresIn = expiresIn
-}
-
-func (ti *DefaultTokenIssuer) StoreRefreshTokenWith(storeRefreshTokenWith StoreRefreshTokenFunc) {
-	ti.storeRefreshTokenWith = storeRefreshTokenWith
-}
-
-func (ti *DefaultTokenIssuer) SetExtraClaimsWith(setExtraClaimsWith SetExtraClaimsFunc) {
-	ti.setExtraClaimsWith = setExtraClaimsWith
-}
-
-func (ti *DefaultTokenIssuer) SetRegisteredClaimsWith(setRegisteredClaimsWith SetRegisteredClaimsFunc) {
-	ti.setRegisteredClaimsWith = setRegisteredClaimsWith
-}
-
-func (ti *DefaultTokenIssuer) ConvertAccessTokenClaimsWith(convertAccessTokenClaimsWith ConvertAccessTokenClaimsFunc) {
-	ti.convertAccessTokenClaimsWith = convertAccessTokenClaimsWith
-}
-
-func (ti *DefaultTokenIssuer) ValidateRefreshTokenWith(validateRefreshTokenWith ValidateRefreshTokenFunc) {
-	ti.validateRefreshTokenWith = validateRefreshTokenWith
-}
-
-func (ti *DefaultTokenIssuer) CreateAccessToken(ctx context.Context, authenticatable Authenticatable) (*Token, error) {
-	extraClaims := make(map[string]any)
-	if ti.setExtraClaimsWith != nil {
-		extraClaims = ti.setExtraClaimsWith(ctx, authenticatable)
-	}
-
-	var registeredClaims jwt.RegisteredClaims
-	if ti.setRegisteredClaimsWith != nil {
-		registeredClaims = ti.setRegisteredClaimsWith(ctx, authenticatable)
-	} else {
-		registeredClaims = jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ti.accessTokenExpiresIn)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-			Subject:   authenticatable.GetID(),
-			Issuer:    ti.issuer,
-			Audience:  ti.audience,
-		}
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, TokenClaims{
-		RegisteredClaims: registeredClaims,
-		Username:         authenticatable.GetUsername(),
-		Email:            authenticatable.GetEmail(),
-		ExtraClaims:      extraClaims,
-	})
-
-	tokenString, err := token.SignedString([]byte(ti.secret))
-	if err != nil {
-		return nil, err
-	}
-
-	return &Token{
-		Value:     tokenString,
-		ExpiresIn: ti.accessTokenExpiresIn,
-	}, nil
-}
-
-func (ti *DefaultTokenIssuer) CreateRefreshToken(ctx context.Context, authenticatable Authenticatable, refreshing bool) (*Token, error) {
-	if ti.storeRefreshTokenWith == nil {
-		return nil, &ConfigError{Msg: "StoreRefreshTokenWith is not set"}
-	}
-
-	tokenString := uuid.New().String()
-	token := &Token{
-		Value:     tokenString,
-		ExpiresIn: ti.refreshTokenExpiresIn,
-	}
-
-	err := ti.storeRefreshTokenWith(ctx, authenticatable, token, refreshing)
-	if err != nil {
-		return nil, &InternalError{Msg: "failed to store refresh token", Err: err}
-	}
-
-	return token, nil
-}
-
-func (ti *DefaultTokenIssuer) DecodeAccessToken(ctx context.Context, token string) (*TokenClaims, error) {
-	jwt, err := jwt.ParseWithClaims(token, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(ti.secret), nil
-	})
-
-	if err != nil {
-		// jwt lib returns various errors (validation/signature/expired). Classify as token error.
-		return nil, &TokenError{Msg: "failed to parse or validate access token", Err: err}
-	}
-
-	claims, ok := jwt.Claims.(*TokenClaims)
+// GetExtraClaimString returns a string value from extra claims
+func (tc *TokenClaims) GetExtraClaimString(key string) (string, bool) {
+	v, ok := tc.GetExtraClaim(key)
 	if !ok {
-		return nil, &TokenError{Msg: "invalid token claims"}
+		return "", false
 	}
-
-	return claims, nil
+	s, ok := v.(string)
+	return s, ok
 }
 
-func (ti *DefaultTokenIssuer) ConvertAccessTokenClaims(ctx context.Context, claims *TokenClaims) (Authenticatable, error) {
-	if ti.convertAccessTokenClaimsWith != nil {
-		a, err := ti.convertAccessTokenClaimsWith(ctx, claims)
-		if err != nil {
-			return nil, &TokenError{Msg: "failed to convert access token claims", Err: err}
-		}
-		return a, nil
+// GetExtraClaimBool returns a bool value from extra claims
+func (tc *TokenClaims) GetExtraClaimBool(key string) (bool, bool) {
+	v, ok := tc.GetExtraClaim(key)
+	if !ok {
+		return false, false
 	}
-
-	return &User{
-		ID:       claims.Subject,
-		Username: claims.Username,
-		Email:    claims.Email,
-		Extra:    claims.ExtraClaims,
-	}, nil
+	b, ok := v.(bool)
+	return b, ok
 }
 
-func (ti *DefaultTokenIssuer) ValidateRefreshToken(ctx context.Context, token string) (Authenticatable, error) {
-	if ti.validateRefreshTokenWith == nil {
-		return nil, &ConfigError{Msg: "ValidateRefreshTokenWith is not set"}
-	}
+// IsAccessToken returns true if this is an access token
+func (tc *TokenClaims) IsAccessToken() bool {
+	return tc.TokenType == AccessToken || tc.TokenType == ""
+}
 
-	authenticatable, err := ti.validateRefreshTokenWith(ctx, token)
-	if err != nil {
-		return nil, &TokenError{Msg: "invalid or rejected refresh token", Err: err}
-	}
-
-	return authenticatable, nil
+// IsRefreshToken returns true if this is a refresh token
+func (tc *TokenClaims) IsRefreshToken() bool {
+	return tc.TokenType == RefreshToken
 }
