@@ -25,14 +25,16 @@ func TestNew(t *testing.T) {
 func TestRegisterStrategy(t *testing.T) {
 	t.Run("should register a new strategy", func(t *testing.T) {
 		goauth := New()
-		goauth.RegisterStrategy(&LocalStrategy{})
-		goauth.RegisterStrategy(&JWTStrategy{})
+		goauth.RegisterStrategy(NewLocalStrategy(func(ctx context.Context, params AuthParams) (Authenticatable, error) {
+			return nil, nil
+		}))
+		goauth.RegisterStrategy(NewJWTStrategy(NewDefaultTokenIssuer("test")))
 
-		if _, ok := goauth.strategies["local"]; !ok {
+		if !goauth.HasStrategy("local") {
 			t.Errorf("goauth.Strategies should contain a local strategy")
 		}
 
-		if _, ok := goauth.strategies["jwt"]; !ok {
+		if !goauth.HasStrategy("jwt") {
 			t.Errorf("goauth.Strategies should contain a jwt strategy")
 		}
 	})
@@ -42,15 +44,13 @@ func TestAuthenticate(t *testing.T) {
 	goauth := New()
 
 	t.Run("should authenticate a user with local strategy", func(t *testing.T) {
-		goauth.RegisterStrategy(&LocalStrategy{
-			LookupUserWith: func(ctx context.Context, params AuthParams) (Authenticatable, error) {
-				return &User{
-					ID:       "test",
-					Username: "test",
-					Email:    "test@test.com",
-				}, nil
-			},
-		})
+		goauth.RegisterStrategy(NewLocalStrategy(func(ctx context.Context, params AuthParams) (Authenticatable, error) {
+			return &User{
+				ID:       "test",
+				Username: "test",
+				Email:    "test@test.com",
+			}, nil
+		}))
 
 		result, err := goauth.Authenticate(context.TODO(), "local", AuthParams{
 			UsernameOrEmail: "test",
@@ -101,14 +101,12 @@ func TestAuthenticate(t *testing.T) {
 		})
 		tokenIssuer.SetIssuer("api.example.com")
 		tokenIssuer.SetAudience([]string{"api.example.com", "auth.example.com"})
-		tokenIssuer.StoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token, refreshing bool) error {
-			// use refreshing to determine if the token is being refreshed or not
+		tokenIssuer.StoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token, oldToken *string) error {
+			// oldToken is nil for initial login, non-nil for token refresh
 			return nil
 		})
 
-		goauth.RegisterStrategy(&JWTStrategy{
-			TokenIssuer: tokenIssuer,
-		})
+		goauth.RegisterStrategy(NewJWTStrategy(tokenIssuer))
 		goauth.SetTokenIssuer(tokenIssuer)
 
 		user := &User{
@@ -171,8 +169,8 @@ func TestIssueTokens(t *testing.T) {
 	t.Run("should issue access and refresh tokens", func(t *testing.T) {
 		var storedRefreshToken string
 		tokenIssuer := NewDefaultTokenIssuer("testsecret")
-		tokenIssuer.StoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token, refreshing bool) error {
-			// use refreshing to determine if the token is being refreshed or not
+		tokenIssuer.StoreRefreshTokenWith(func(ctx context.Context, authenticatable Authenticatable, token *Token, oldToken *string) error {
+			// oldToken is nil for initial login, non-nil for token refresh
 			storedRefreshToken = token.Value
 			return nil
 		})
@@ -187,15 +185,13 @@ func TestIssueTokens(t *testing.T) {
 		goauth := New()
 		goauth.SetTokenIssuer(tokenIssuer)
 
-		goauth.RegisterStrategy(&LocalStrategy{
-			LookupUserWith: func(ctx context.Context, params AuthParams) (Authenticatable, error) {
-				return &User{
-					ID:       "test",
-					Username: "test",
-					Email:    "test@test.com",
-				}, nil
-			},
-		})
+		goauth.RegisterStrategy(NewLocalStrategy(func(ctx context.Context, params AuthParams) (Authenticatable, error) {
+			return &User{
+				ID:       "test",
+				Username: "test",
+				Email:    "test@test.com",
+			}, nil
+		}))
 
 		result, accessToken, refreshToken, err := goauth.AuthenticateAndIssueTokens(context.TODO(), "local", AuthParams{
 			UsernameOrEmail: "test",
